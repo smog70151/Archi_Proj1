@@ -1,6 +1,5 @@
 #include "image_content.h"
 #include <iostream>
-#include <bitset>
 
 using namespace std;
 

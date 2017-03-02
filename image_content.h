@@ -1,13 +1,13 @@
 #include <iostream>
 #include <string>
-#include <bitset>
+#include "image_translation.h"
 
 using namespace std;
 
 
 //reg data
-extern unsigned int reg_pre[35];
-extern unsigned int reg_cur[35];
+extern int reg_pre[35];
+extern int reg_cur[35];
 
 //inst_memory(iimage)
 extern unsigned int no_inst_data;

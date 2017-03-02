@@ -1,12 +1,52 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#include <bitset>
 #include <string>
 
 #include "image_content.h"
 
 using namespace std;
+
+//function
+void Init_reg(); //initialize register
+void Renew_reg(); //renew register before the next snapshot
+// trans char 2 int (4*8 bits -> 32 bits)
+unsigned int c2i_inst_data(unsigned int inst, int pow,unsigned char value); // char 2 unsigned int
+
+//load the data
+void read_inst(); //read the iimage.bin and store it into the inst array. Besides, store the PC addr in the same time.
+void read_data(); //read the dimage.bin and store it into the data array. Besides, analyze the inst_data synchronously.
+
+//output the outcome
+void Snapshot(int cyc); //output the snapshot
+
+int main()
+{
+    int cyc=0; //current cycle
+	int no_inst_cur=0;    // current instruction (control the inst)
+
+    Init_reg(); // Initialize reg_pre
+    read_inst(); //read instruction file and store the message
+    read_data(); //read data file and analyze the inst
+
+    Snapshot(cyc); // cycle 0 snapshot
+
+
+
+	while(1)
+	{
+		Renew_reg();
+		no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur); //deal with the data, and return next inst
+		cyc++;
+		Snapshot(cyc);
+	}
+
+
+
+
+    return 0;
+
+}
 
 unsigned int c2i_inst_data(unsigned int inst, int pow,unsigned char value) // c2i -> ( alter char to 32'b integer )
 {
@@ -24,7 +64,7 @@ unsigned int c2i_inst_data(unsigned int inst, int pow,unsigned char value) // c2
 void read_inst()  //read iimage.bin and store the inst step by step
 {
     fstream iimage;
-    iimage.open("iimage.bin",ios::in);
+    iimage.open("iimage.bin",ios::in|ios::binary);
     unsigned char c;
     unsigned int inst;
     unsigned int count;
@@ -39,6 +79,7 @@ void read_inst()  //read iimage.bin and store the inst step by step
     }
     //store the initial PC address
     pc_addr_init=inst;
+	reg_cur[34]=pc_addr_init;
 
     //number of instructions (iimage_1)
     for(int i=0; i<4; i++)
@@ -69,15 +110,76 @@ void read_inst()  //read iimage.bin and store the inst step by step
 
         count--;
         if((inst>>26)==63) //terminate the program with the inst "halt"
-            break;
+			break;
     }
     iimage.close();
+}
+
+void read_data()  //read the dimage.bin and store it into the data array. Besides, analyze the inst_data synchronously.
+{
+    fstream dimage;
+    dimage.open("dimage.bin",ios::in|ios::binary);
+    unsigned char c;
+    unsigned int data;
+    unsigned int count;
+
+    //read the first line in the file (dimage_0)
+    for(int i=0; i<4; i++)
+    {
+        if(i==0) data = 0;
+        dimage.read((char*)&c,sizeof(char));
+        data=c2i_inst_data(data,4-i,c);
+    }
+    //store the reg[29]($sp) data
+    reg_cur[29]=data;
+
+    //number of data (dimage_1)
+    for(int i=0; i<4; i++)
+    {
+        if(i==0) data = 0;
+        dimage.read((char*)&c,sizeof(char));
+        data=c2i_inst_data(data,4-i,c);
+    }
+    //store the no of data and create 2 dynamic array, which store the data and the PC addr
+    no_data_data=data;
+    data_data = new unsigned int[no_data_data];
+    data_pc_addr = new unsigned int[no_data_data];
+
+    //(dimage_2~end)
+    count = data;
+    while(count)
+    {
+        //read the rest part of the dimage file
+        for(int i=0; i<4; i++)
+        {
+            if(i==0) data = 0;
+            dimage.read((char*)&c,sizeof(char));
+            data=c2i_inst_data(data,4-i,c);
+        }
+        //store the message
+        data_data[no_data_data-count]=data;
+        data_pc_addr[no_data_data-count]=0;
+
+        count--;
+        if((data>>26)==63) //terminate the program with the data "halt"
+            break;
+    }
+    dimage.close();
 }
 
 void Init_reg()
 {
     for(int i = 0; i<35; i++)
+    {
         reg_pre[i]=(1<<31); //2^31
+        reg_cur[i]=0;
+    }
+}
+
+void Renew_reg()
+{
+	for(int i=0; i<35; i++)
+		reg_pre[i]=reg_cur[i];
 }
 
 void Snapshot(int cyc)
@@ -92,30 +194,21 @@ void Snapshot(int cyc)
             switch(i)
             {
             case 34:  //format = PC: 0x_0000_0000
-                cout << "PC: 0x" << hex << reg_cur[34] << endl;
+                cout << "PC: 0x" << setw(8) << setfill('0') << hex << reg_cur[34] << endl;
                 break;
             case 33:  //format = LO: 0x_0000_0000
-                cout << "LO: 0x" << hex << reg_cur[33] << endl;
+                cout << "LO: 0x" << setw(8) << setfill('0') << hex << reg_cur[33] << endl;
                 break;
             case 32:  //format = HI: 0x_0000_0000
-                cout << "HI: 0x" << hex << reg_cur[32] << endl;
+                cout << "HI: 0x" << setw(8) << setfill('0') << hex << reg_cur[32] << endl;
                 break;
             default:  //format = $10: 0x_0000_0000
-                 cout << "$" << setw(2) << setfill('0') << i << ": 0x" << hex << reg_cur[i] << endl;
+                cout << "$" << setw(2) << setfill('0') << dec << i << ": 0x" << setw(8) << setfill('0') << hex << reg_cur[i] << endl;
+				break;
             }
         }
     }
     cout << endl << endl;
-}
-
-
-int main()
-{
-
-    Init_reg(); // Initialize reg_pre
-    read_inst(); //read instruction file and store the message
-    read_data(); //read data file and analyze the inst
-
-    return 0;
-
+    for(int i=0; i<35; i++)
+        reg_pre[i]=reg_cur[i];
 }
