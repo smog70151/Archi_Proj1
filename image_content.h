@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "image_translation.h"
+
 
 using namespace std;
 

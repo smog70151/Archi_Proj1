@@ -4,6 +4,7 @@
 #include <string>
 
 #include "image_content.h"
+#include "image_translation.h"
 
 using namespace std;
 
@@ -37,6 +38,10 @@ int main()
 	{
 		Renew_reg();
 		no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur); //deal with the data, and return next inst
+		//cout << "no_inst_cur : " << no_inst_cur << endl;
+		if(no_inst_cur==-2) //detect "halt" instruction
+			break;
+		reg_cur[34]=inst_pc_addr[no_inst_cur]; //renew the PC address
 		cyc++;
 		Snapshot(cyc);
 	}
@@ -184,7 +189,7 @@ void Renew_reg()
 
 void Snapshot(int cyc)
 {
-    cout << "cycle " << cyc << endl;
+    cout << "cycle " << dec << cyc << endl;
     for(int i=0; i<35; i++) // print the ans in the ordered list
     {
         if(reg_pre[i]==reg_cur[i]) //if the reg did not alter, it will skip.

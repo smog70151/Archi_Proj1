@@ -4,8 +4,8 @@
 using namespace std;
 
 //reg data
-unsigned int reg_pre[35];
-unsigned int reg_cur[35];
+int reg_pre[35];
+int reg_cur[35];
 
 //inst_memory(iimage)
 unsigned int no_inst_data;
