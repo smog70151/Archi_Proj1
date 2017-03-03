@@ -8,9 +8,10 @@
 
 using namespace std;
 
+//variables
+fstream report_cyc;
 //function
 void Init_reg(); //initialize register
-void Renew_reg(); //renew register before the next snapshot
 // trans char 2 int (4*8 bits -> 32 bits)
 unsigned int c2i_inst_data(unsigned int inst, int pow,unsigned char value); // char 2 unsigned int
 
@@ -30,13 +31,13 @@ int main()
     read_inst(); //read instruction file and store the message
     read_data(); //read data file and analyze the inst
 
+	report_cyc.open("snapshot.rpt",ios::out); //in order to record 
     Snapshot(cyc); // cycle 0 snapshot
 
 
 
 	while(1)
 	{
-		Renew_reg();
 		no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur); //deal with the data, and return next inst
 		//cout << "no_inst_cur : " << no_inst_cur << endl;
 		if(no_inst_cur==-2) //detect "halt" instruction
@@ -147,27 +148,31 @@ void read_data()  //read the dimage.bin and store it into the data array. Beside
     }
     //store the no of data and create 2 dynamic array, which store the data and the PC addr
     no_data_data=data;
-    data_data = new unsigned int[no_data_data];
+    data_data = new unsigned int[4*no_data_data];
     data_pc_addr = new unsigned int[no_data_data];
 
     //(dimage_2~end)
-    count = data;
+    count = no_data_data;
+	int i = 0;
     while(count)
     {
         //read the rest part of the dimage file
-        for(int i=0; i<4; i++)
-        {
-            if(i==0) data = 0;
-            dimage.read((char*)&c,sizeof(char));
-            data=c2i_inst_data(data,4-i,c);
-        }
+		for(int i=0; i<4; i++)
+		{
+			if(i==0) data = 0;
+			dimage.read((char*)&c,sizeof(char));
+			data=c2i_inst_data(data,4-i,c);
+		}
         //store the message
-        data_data[no_data_data-count]=data;
+        data_data[4*(no_data_data-count)]  =(data & 0xff000000)>>24;
+		data_data[4*(no_data_data-count)+1]=(data & 0x00ff0000)>>16;
+		data_data[4*(no_data_data-count)+2]=(data & 0x0000ff00)>>8;
+		data_data[4*(no_data_data-count)+3]= data & 0x000000ff;
+		
+		
         data_pc_addr[no_data_data-count]=0;
 
         count--;
-        if((data>>26)==63) //terminate the program with the data "halt"
-            break;
     }
     dimage.close();
 }
@@ -181,15 +186,10 @@ void Init_reg()
     }
 }
 
-void Renew_reg()
-{
-	for(int i=0; i<35; i++)
-		reg_pre[i]=reg_cur[i];
-}
-
 void Snapshot(int cyc)
 {
-    cout << "cycle " << dec << cyc << endl;
+	
+    report_cyc << "cycle " << dec << cyc << endl;
     for(int i=0; i<35; i++) // print the ans in the ordered list
     {
         if(reg_pre[i]==reg_cur[i]) //if the reg did not alter, it will skip.
@@ -199,21 +199,21 @@ void Snapshot(int cyc)
             switch(i)
             {
             case 34:  //format = PC: 0x_0000_0000
-                cout << "PC: 0x" << setw(8) << setfill('0') << hex << reg_cur[34] << endl;
+                report_cyc << "PC: 0x" << setw(8) << setfill('0') << hex << uppercase << reg_cur[34] << endl;
                 break;
             case 33:  //format = LO: 0x_0000_0000
-                cout << "LO: 0x" << setw(8) << setfill('0') << hex << reg_cur[33] << endl;
+                report_cyc << "$LO: 0x" << setw(8) << setfill('0') << hex << uppercase << reg_cur[33] << endl;
                 break;
             case 32:  //format = HI: 0x_0000_0000
-                cout << "HI: 0x" << setw(8) << setfill('0') << hex << reg_cur[32] << endl;
+                report_cyc << "$HI: 0x" << setw(8) << setfill('0') << hex << uppercase << reg_cur[32] << endl;
                 break;
             default:  //format = $10: 0x_0000_0000
-                cout << "$" << setw(2) << setfill('0') << dec << i << ": 0x" << setw(8) << setfill('0') << hex << reg_cur[i] << endl;
+                report_cyc << "$" << setw(2) << setfill('0') << dec << i << ": 0x" << setw(8) << setfill('0') << hex << uppercase << reg_cur[i] << endl;
 				break;
             }
         }
     }
-    cout << endl << endl;
+    report_cyc << endl << endl;
     for(int i=0; i<35; i++)
         reg_pre[i]=reg_cur[i];
 }
