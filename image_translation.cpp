@@ -1,5 +1,7 @@
 #include <iostream>
 #include <string>
+#include <fstream>
+#include <iomanip>
 #include "image_content.h"
 
 using namespace std;
@@ -9,72 +11,132 @@ unsigned int immediate; //16 bits
 unsigned int opcode, funct; //6 bits
 unsigned int rt, rs, rd, shamt; //5 bits
 
-int sign(unsigned int data, string option)
+fstream report_error;
+
+int detect_error(int error, int cyc)
 {
-	int sign_num;
-	int detect_sign;
-	if(option=="immediate") //16bits option
+	/*
+	error type :
+	1.Write to register $0
+	2.Number overflow
+	3.Overwrite HI-LO registers
+	4.Memory address overflow
+	5.Data misaligned
+	*/
+	if(error==1) // Write to register $0
 	{
-		//cout << data;
-		detect_sign=data>>15;
-		sign_num=(detect_sign==0)?(data%1<<15):-(data%(1<<15))+1;
-		return sign_num;
+		switch(opcode)
+		{
+            case 0x00 :
+				if(rd!=0)
+					return 0;
+				else
+				{
+					report_error <<  "In cycle " << dec << cyc << ": Write $0 Error" << endl;
+					return 1;
+				}
+			break;
+			default :
+				if(rt!=0)
+					return 0;
+				else
+				{
+					report_error <<  "In cycle " << dec << cyc << ": Write $0 Error" << endl;
+					return 1;
+				}
+			break;
+		}
+	}
+	else if(error==2) // Number overflow
+	{
+
+	}
+	else if(error==3) // Overwrite HI-LO registers
+	{
+
+	}
+	else if(error==4) // Memory address overflow
+	{
+
+	}
+	else if(error==5) // Data misaligned
+	{
+
 	}
 }
 
-
 //handle the inst
-int trans_inst(unsigned int inst, int no_inst)
+int trans_inst(unsigned int inst, int no_inst, int cyc)
 {
 	unsigned int pc_addr; //a temp pc address to seek for the next inst :)
+	long long int temp_rs, temp_rt;
     //cout << "instrution : " << hex << inst << endl;
 
     opcode = inst>>26; // trans opcode in the beginning to determine the next step
-    cout << "opcode : " <<hex << opcode << endl;
+    cout << "opcode : " << hex << opcode << endl;
     switch(opcode)
     {
         //R-type instructions op(6)_rs(5)_rt(5)_rd(5)_shamt(5)_funct(6)
         //opcode = 0x00
         case 0x00 :
             funct = inst%(1<<6);
+			cout << "funct : " << hex << funct << " cyc " << (cyc-1) << endl;
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			rd = (inst>>11)%(1<<5);
             switch(funct)
             {
                 case 0x20 : //add $d = $s + $t
-					reg_cur[rd]=(int)reg_pre[rs]+(int)reg_pre[rt];
-                    return ++no_inst;
-					break;
-                case 0x21 : //addu $d = $s + $t(unsigned, no overflow exception)
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
 					reg_cur[rd]=reg_pre[rs]+reg_pre[rt];
                     return ++no_inst;
 					break;
+                case 0x21 : //addu $d = $s + $t(unsigned, no overflow exception)
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
+					reg_cur[rd]=(unsigned int)reg_pre[rs]+(unsigned int)reg_pre[rt];
+                    return ++no_inst;
+					break;
                 case 0x22 : //sub $d = $s - $t
-					reg_cur[rd]=(int)reg_pre[rs]-(int)reg_pre[rt];
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
+					reg_cur[rd]=reg_pre[rs]-reg_pre[rt];
                     return ++no_inst;
 					break;
                 case 0x24 : //and $d = $s & $t
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
 					reg_cur[rd]=reg_pre[rs]&reg_pre[rt];
                     return ++no_inst;
 					break;
                 case 0x25 : //or $d = $s | $t
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
 					reg_cur[rd]=reg_pre[rs]|reg_pre[rt];
                     return ++no_inst;
 					break;
 				case 0x26 : //xor $d = $s ^ $t
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
 					reg_cur[rd]=reg_pre[rs]^reg_pre[rt];
                     return ++no_inst;
 					break;
 				case 0x27 : //nor $d = ~ ($s | $t)
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
 					reg_cur[rd]=~(reg_pre[rs]|reg_pre[rt]);
                     return ++no_inst;
 					break;
 				case 0x28 : //nand $d = ~($s & $t)
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
 					reg_cur[rd]=~(reg_pre[rs]&reg_pre[rt]);
                     return ++no_inst;
 					break;
 				case 0x2a : //slt $d = ($s < $t), signed comparison
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
 					reg_cur[rd]=(reg_pre[rs]<reg_pre[rt]);
                     return ++no_inst;
 					break;
@@ -84,12 +146,16 @@ int trans_inst(unsigned int inst, int no_inst)
                     return ++no_inst;
 					break;
 				case 0x02 : //srl $d = $t >> C
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
 					shamt = (inst>>6)%(1<<5);
 					reg_cur[rd]= reg_pre[rt]>>shamt;
                     return ++no_inst;
 					break;
 				case 0x03 : //sra $d = $t >> C, with sign bit shifted in
-					shamt = (inst>>6)%(1<<11);
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
+					shamt = (inst & 0x00000400)>>10;
 					reg_cur[rd]= (reg_pre[rt]>>shamt);
                     return ++no_inst;
 					break;
@@ -100,20 +166,50 @@ int trans_inst(unsigned int inst, int no_inst)
 							return no_inst=i;
 					break;
 				case 0x18 : //mult {Hi || Lo} = $s * $t
-					reg_cur[32] = int(((long long int)reg_pre[rs] * (long long int)reg_pre[rt])>>31);
-					reg_cur[33] = int(((long long int)reg_pre[rs] * (long long int)reg_pre[rt])<<31>>31);
+					cout << setw(8) << hex << reg_cur[rs] << " " << dec << rs << "--rs" << endl;
+					cout << setw(8) << hex << reg_cur[rt] << " " << dec << rt << "--rt" << endl;
+					if(reg_pre[rs] & 0x80000000)
+						temp_rs=reg_pre[rs] | 0xffffffff00000000;
+					else
+						temp_rs=reg_pre[rs] | 0x00000000ffffffff;
+					if(reg_pre[rt] & 0x80000000)
+						temp_rt=reg_pre[rt] | 0xffffffff00000000;
+					else
+						temp_rt=reg_pre[rt] | 0x00000000ffffffff;
+					cout << setw(16) << setfill('0') << hex << temp_rt << "--rt" << endl;
+					cout << setw(16) << setfill('0') << hex << temp_rs << "--rs" << endl;
+					cout << setw(16) << setfill('0') << hex << (temp_rs*temp_rt) << "--outcome" << endl;
+					reg_cur[32] = (temp_rs*temp_rt)>>32;
+					reg_cur[33] = (temp_rs*temp_rt) & 0x00000000ffffffff;
                     return ++no_inst;
 					break;
 				case 0x19 : //multu {Hi || Lo} = $s * $t (unsigned, no overflow exception)
-					reg_cur[32] = int(((unsigned long long int)reg_pre[rs] * (unsigned long long int)reg_pre[rt])>>31);
-					reg_cur[33] = int(((unsigned long long int)reg_pre[rs] * (unsigned long long int)reg_pre[rt])<<31>>31);
+					cout << setw(8) << hex << reg_cur[rs] << " " << dec << rs << "--rs" << endl;
+					cout << setw(8) << hex << reg_cur[rt] << " " << dec << rt << "--rt" << endl;
+					if(reg_pre[rs] & 0x80000000)
+						temp_rs=reg_pre[rs] & 0x00000000ffffffff;
+					else
+						temp_rs=reg_pre[rs] & 0x00000000ffffffff;
+					if(reg_pre[rt] & 0x80000000)
+						temp_rt=reg_pre[rt] & 0x00000000ffffffff;
+					else
+						temp_rt=reg_pre[rt] & 0x00000000ffffffff;
+					cout << setw(16) << setfill('0') << hex << temp_rt << "--rt" << endl;
+					cout << setw(16) << setfill('0') << hex << temp_rs << "--rs" << endl;
+					cout << setw(16) << setfill('0') << hex << (temp_rs*temp_rt) << "--outcome" << endl;
+					reg_cur[32] = (temp_rs*temp_rt)>>32;
+					reg_cur[33] = (temp_rs*temp_rt) & 0x00000000ffffffff;
                     return ++no_inst;
 					break;
 				case 0x10 : //mfhi $d = Hi
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
                     reg_cur[rd] = reg_pre[32];
 					return ++no_inst;
 					break;
 				case 0x12 : //mflo $d = Lo
+					if(detect_error(1,cyc)) // error : write to register $0
+						return++no_inst;
                     reg_cur[rd] = reg_pre[33];
 					return ++no_inst;
 					break;
@@ -126,14 +222,14 @@ int trans_inst(unsigned int inst, int no_inst)
         //opcode(6)_address(26)
         case 0x02 : //j PC = (PC+4)[31:28] | 4*C(unsigned)
 			address=inst%(1<<26);
-			pc_addr=((inst_pc_addr[no_inst]+4)>>27)|(4*(int)address);
+			pc_addr=((inst_pc_addr[no_inst]+4)>>27)|(4*address);
             for(unsigned int i = 0; i<no_inst_data; i++)
 				if(pc_addr==inst_pc_addr[i])
 					return no_inst=i;
 			break;
-        case 0x03 : //jal
+        case 0x03 : //jal $31 = PC + 4;PC = (PC+4)[31:28] | 4*C(unsigned)
 			address=inst%(1<<26);
-			reg_cur[31]=(inst_pc_addr[no_inst]+4)>>27;
+			reg_cur[31]=inst_pc_addr[no_inst]+4;
 			pc_addr=((inst_pc_addr[no_inst]+4)>>27)|(4*address);
             for(unsigned int i = 0; i<no_inst_data; i++)
 				if(pc_addr==inst_pc_addr[i])
@@ -144,6 +240,8 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x08 : //addi $t = $s + C(signed)
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
@@ -153,26 +251,38 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x09 : //addiu $t = $s + C(unsigned, no overflow exception)
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
 			reg_cur[rt] = reg_cur[rs] + immediate;
 			return ++no_inst;
 			break;
 		case 0x23 : //lw $t = 4 bytes from Memory[$s + C(signed)]
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
-			reg_cur[rt] =(data_data[reg_pre[rs]+sign(immediate,"immediate")]  <<24)
-						+(data_data[reg_pre[rs]+sign(immediate,"immediate")+1]<<16)
-						+(data_data[reg_pre[rs]+sign(immediate,"immediate")+2]<< 8)
-						+(data_data[reg_pre[rs]+sign(immediate,"immediate")+3]    );
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
+			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]  <<24)
+						+(data_data[reg_pre[rs]+(int)immediate+1]<<16)
+						+(data_data[reg_pre[rs]+(int)immediate+2]<< 8)
+						+(data_data[reg_pre[rs]+(int)immediate+3]    );
 			return ++no_inst;
 			break;
 		case 0x21 : //lh $t = 2 bytes from Memory[$s + C(signed)], signed
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
-			reg_cur[rt] =(data_data[reg_pre[rs]+sign(immediate,"immediate")]<<8)
-						+ data_data[reg_pre[rs]+sign(immediate,"immediate")+1];
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
+			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate  ]<<8)
+						+ data_data[reg_pre[rs]+(int)immediate+1];
 			if(reg_cur[rt] & 0x00008000)
 				reg_cur[rt] = reg_cur[rt] | 0xffff8000;
 			return ++no_inst;
@@ -180,15 +290,23 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x25 : //lhu $t = 2 bytes from Memory[$s + C(signed)], unsigned
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
-			reg_cur[rt] =(data_data[reg_pre[rs]+sign(immediate,"immediate")]<<8)
-						+ data_data[reg_pre[rs]+sign(immediate,"immediate")+1]  ;
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
+			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]<<8)
+						+ data_data[reg_pre[rs]+(int)immediate+1]  ;
 			return ++no_inst;
 			break;
 		case 0x20 : //lb $t = Memory[$s + C(signed)], signed
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
 			reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
 			if(reg_cur[rt] & 0x0000080)
 				reg_cur[rt] =reg_cur[rt] | 0xffffff00;
@@ -197,7 +315,11 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x24 : //lbu $t = Memory[$s + C(signed)], unsigned
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
 			reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
 			return ++no_inst;
 			break;
@@ -205,29 +327,37 @@ int trans_inst(unsigned int inst, int no_inst)
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			immediate = inst%(1<<16);
-			data_data[reg_pre[rs]+sign(immediate,"immediate")  ]=reg_pre[rt]>>24 & 0x000000ff;
-			data_data[reg_pre[rs]+sign(immediate,"immediate")+1]=reg_pre[rt]>>16 & 0x000000ff;
-			data_data[reg_pre[rs]+sign(immediate,"immediate")+2]=reg_pre[rt]>> 8 & 0x000000ff;
-			data_data[reg_pre[rs]+sign(immediate,"immediate")+3]=reg_pre[rt]     & 0x000000ff;
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
+			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>>24 & 0x000000ff;
+			data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]>>16 & 0x000000ff;
+			data_data[reg_pre[rs]+(int)immediate+2]=reg_pre[rt]>> 8 & 0x000000ff;
+			data_data[reg_pre[rs]+(int)immediate+3]=reg_pre[rt]     & 0x000000ff;
 			return ++no_inst;
 			break;
 		case 0x29 : //sh 2 bytes from Memory[$s + C(signed)] = $t & 0x0000FFFF
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			immediate = inst%(1<<16);
-			data_data[reg_pre[rs]+sign(immediate,"immediate")  ]=reg_pre[rt]>> 8 & 0x000000ff;
-			data_data[reg_pre[rs]+sign(immediate,"immediate")+1]=reg_pre[rt]     & 0x000000ff;
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
+			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>> 8 & 0x000000ff;
+			data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]     & 0x000000ff;
 			return ++no_inst;
 			break;
 		case 0x28 : //sb Memory[$s + C(signed)] = $t & 0x000000FF
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			immediate = inst%(1<<16);
-			data_data[reg_pre[rs]+sign(immediate,"immediate")  ]=reg_pre[rt]     & 0x000000ff;
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
+			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]     & 0x000000ff;
 			return ++no_inst;
 			break;
 		case 0x0f : //lui $t = C << 16
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
 			reg_cur[rt]=immediate<<16;
 			return ++no_inst;
@@ -235,6 +365,8 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x0c : //andi $t = $s & C(unsigned)
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
 			reg_cur[rt]=reg_pre[rs] & immediate;
 			return ++no_inst;
@@ -242,6 +374,8 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x0d : //ori $t = $s | C(unsigned)
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
 			reg_cur[rt]=reg_pre[rs] | immediate;
 			return ++no_inst;
@@ -249,6 +383,8 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x0e : //nori $t = ~($s | C(unsigned))
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
 			reg_cur[rt]=~(reg_pre[rs] | immediate);
 			return ++no_inst;
@@ -256,14 +392,20 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x0a : //slti $t = ($s < C(signed) ), signed comparison
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
+			if(detect_error(1,cyc)) // error : write to register $0
+				return++no_inst;
 			immediate = inst%(1<<16);
-			reg_cur[rt]= (reg_pre[rs]&0x80000000)<((int)immediate&0x8000);
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
+			reg_cur[rt]= (reg_pre[rs]&0x80000000)<((int)(immediate&0x8000)<<16);
 			return ++no_inst;
 			break;
 		case 0x04 : //beq if ($s == $t) go to PC+4+4*C(signed)
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			immediate = inst%(1<<16);
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
 			if(reg_pre[rs]!=reg_pre[rt])
 				return ++no_inst;
 			else
@@ -278,6 +420,8 @@ int trans_inst(unsigned int inst, int no_inst)
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			immediate = inst%(1<<16);
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
 			if(reg_pre[rs]==reg_pre[rt])
 				return ++no_inst;
 			else
@@ -291,6 +435,8 @@ int trans_inst(unsigned int inst, int no_inst)
 		case 0x07 : //bgtz if ($s > 0) go to PC+4+4*C(signed)
 			rs = (inst>>21)%(1<<5);
 			immediate = inst%(1<<16);
+			if(immediate & 0x00008000)
+				immediate = immediate | 0xffff0000;
 			if(reg_pre[rs]>0)
 				return ++no_inst;
 			else

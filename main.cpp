@@ -31,23 +31,24 @@ int main()
     read_inst(); //read instruction file and store the message
     read_data(); //read data file and analyze the inst
 
-	report_cyc.open("snapshot.rpt",ios::out); //in order to record 
-    Snapshot(cyc); // cycle 0 snapshot
+	report_cyc.open("snapshot_mine.rpt",ios::out); //in order to record chase data in every cyc
+	report_error.open("error_dump_mine.rpt",ios::out); //in order to chase error in every cyc
 
 
 
 	while(1)
 	{
-		no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur); //deal with the data, and return next inst
+		Snapshot(cyc);
+		no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur, cyc+1); //deal with the data, and return next inst
 		//cout << "no_inst_cur : " << no_inst_cur << endl;
 		if(no_inst_cur==-2) //detect "halt" instruction
 			break;
 		reg_cur[34]=inst_pc_addr[no_inst_cur]; //renew the PC address
 		cyc++;
-		Snapshot(cyc);
 	}
 
-
+	report_cyc.close();
+	report_error.close();
 
 
     return 0;
