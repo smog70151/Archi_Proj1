@@ -55,7 +55,7 @@ int detect_error(int error, int cyc)
 		switch(opcode)
 		{
 			case 0x00 :
-				if(funct==0x20 
+				if(funct==0x20
 				|| funct==0x22)
 				{
 					if(reg_cur[rs]>=0&&reg_cur[rt]>=0&&reg_cur[rd]<0)
@@ -123,6 +123,7 @@ int detect_D_mem(int mem, int cyc)
 int detect_misaligned(int mem, int cyc, int byte)
 {
 	switch(byte)
+	{
 	case 1 :
 		return 0;
 		break;
@@ -148,6 +149,7 @@ int detect_misaligned(int mem, int cyc, int byte)
 	default :
 		return 0;
 		break;
+	}
 }
 
 //handle the inst
@@ -332,7 +334,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				immediate = immediate | 0xffff0000;
 			reg_cur[rt] = reg_cur[rs] + (int)immediate;
 			detect_error(2,cyc);
-			
+
 			return ++no_inst;
 			break;
 		case 0x09 : //addiu $t = $s + C(unsigned, no overflow exception)
