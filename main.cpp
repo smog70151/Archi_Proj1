@@ -34,7 +34,8 @@ int main()
 	report_cyc.open("snapshot_mine.rpt",ios::out); //in order to record chase data in every cyc
 	report_error.open("error_dump_mine.rpt",ios::out); //in order to chase error in every cyc
 
-
+	flag_hi=0;
+	flag_lo=0;
 
 	while(1)
 	{
@@ -149,7 +150,7 @@ void read_data()  //read the dimage.bin and store it into the data array. Beside
     }
     //store the no of data and create 2 dynamic array, which store the data and the PC addr
     no_data_data=data;
-    data_data = new unsigned int[4*no_data_data];
+    data_data = new unsigned int[1024];
     data_pc_addr = new unsigned int[no_data_data];
 
     //(dimage_2~end)

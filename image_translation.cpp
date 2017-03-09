@@ -10,6 +10,9 @@ unsigned int address; //26 bits
 unsigned int immediate; //16 bits
 unsigned int opcode, funct; //6 bits
 unsigned int rt, rs, rd, shamt; //5 bits
+unsigned int inst_pre; //to detect the overwrite HI-LO
+int flag_hi;
+int flag_lo;
 
 fstream report_error;
 
@@ -49,20 +52,102 @@ int detect_error(int error, int cyc)
 	}
 	else if(error==2) // Number overflow
 	{
-
+		switch(opcode)
+		{
+			case 0x00 :
+				if(funct==0x20 
+				|| funct==0x22)
+				{
+					if(reg_cur[rs]>=0&&reg_cur[rt]>=0&&reg_cur[rd]<0)
+						report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
+					else if(reg_cur[rs]<0&&reg_cur[rt]<0&&reg_cur[rd]>=0)
+						report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
+				}
+			break;
+			case 0x08 :
+				if(reg_cur[rs]>=0&&(int)immediate>=0&&reg_cur[rt]<0)
+					report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
+				else if(reg_cur[rs]>=0&&(int)immediate>=0&&reg_cur[rt]<0)
+					report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
+			break;
+			default :
+			break;
+		}
 	}
 	else if(error==3) // Overwrite HI-LO registers
 	{
-
+		if((inst_pre|0x00000000)!=0x00000000&&((inst_pre%(1<<6)!=0x10)||(inst_pre%(1<<6)!=0x12))) //opcode & funct
+		{
+			if(flag_hi==0&&flag_lo==0)
+			{
+				if(reg_cur[32]!=0)
+					flag_hi++;
+				if(reg_cur[33]!=0)
+					flag_lo++;
+			}
+			else if(flag_hi==1&&flag_lo==0)
+			{
+				if(reg_cur[32]!=reg_pre[32])
+					report_error <<  "In cycle " << dec << cyc << ": Overwrite HI-LO registers" << endl;
+				if(reg_cur[33]!=reg_pre[33])
+					flag_lo++;
+			}
+			else if(flag_hi==0&&flag_lo==1)
+			{
+				if(reg_cur[33]!=reg_pre[33])
+					report_error <<  "In cycle " << dec << cyc << ": Overwrite HI-LO registers" << endl;
+				if(reg_cur[32]!=reg_pre[32])
+					flag_lo++;
+			}
+			else
+			{
+				if((reg_cur[32]!=reg_pre[32])||(reg_cur[33]!=reg_pre[33]))
+					report_error <<  "In cycle " << dec << cyc << ": Overwrite HI-LO registers" << endl;
+			}
+		}
 	}
-	else if(error==4) // Memory address overflow
+	return 0;
+}
+
+int detect_D_mem(int mem, int cyc)
+{
+	if(mem>1023)
 	{
-
+		report_error <<  "In cycle " << dec << cyc << ": Address Overflow" << endl;
+		return 1;
 	}
-	else if(error==5) // Data misaligned
-	{
+	else
+		return 0;
+}
 
-	}
+int detect_misaligned(int mem, int cyc, int byte)
+{
+	switch(byte)
+	case 1 :
+		return 0;
+		break;
+	case 2 :
+		if(mem%2!=0)
+		{
+			report_error <<  "In cycle " << dec << cyc << ": Misalignment Error" << endl;
+			return 1;
+		}
+		else
+			return 0;
+		break;
+	case 4 :
+		if(mem%4!=0)
+		{
+			report_error <<  "In cycle " << dec << cyc << ": Misalignment Error" << endl;
+			return 1;
+		}
+		else
+			return 0;
+		break;
+		break;
+	default :
+		return 0;
+		break;
 }
 
 //handle the inst
@@ -73,6 +158,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
     //cout << "instrution : " << hex << inst << endl;
 
     opcode = inst>>26; // trans opcode in the beginning to determine the next step
+	if(opcode!=0x00)
+		inst_pre=inst;
     cout << "opcode : " << hex << opcode << endl;
     switch(opcode)
     {
@@ -84,12 +171,15 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			rd = (inst>>11)%(1<<5);
+			if(funct!=0x18||funct!=0x19)
+				inst_pre=inst;
             switch(funct)
             {
                 case 0x20 : //add $d = $s + $t
 					if(detect_error(1,cyc)) // error : write to register $0
 						return++no_inst;
 					reg_cur[rd]=reg_pre[rs]+reg_pre[rt];
+					detect_error(2,cyc);
                     return ++no_inst;
 					break;
                 case 0x21 : //addu $d = $s + $t(unsigned, no overflow exception)
@@ -102,6 +192,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 					if(detect_error(1,cyc)) // error : write to register $0
 						return++no_inst;
 					reg_cur[rd]=reg_pre[rs]-reg_pre[rt];
+					detect_error(2,cyc);
                     return ++no_inst;
 					break;
                 case 0x24 : //and $d = $s & $t
@@ -142,6 +233,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 					break;
 				case 0x00 : //sll $d = $t << C
 					shamt = (inst>>6)%(1<<5);
+					if(detect_error(1,cyc)&& inst!=0x00000000) // error : write to register $0
+						return++no_inst;
 					reg_cur[rd]= reg_pre[rt]<<shamt;
                     return ++no_inst;
 					break;
@@ -166,8 +259,6 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 							return no_inst=i;
 					break;
 				case 0x18 : //mult {Hi || Lo} = $s * $t
-					cout << setw(8) << hex << reg_cur[rs] << " " << dec << rs << "--rs" << endl;
-					cout << setw(8) << hex << reg_cur[rt] << " " << dec << rt << "--rt" << endl;
 					if(reg_pre[rs] & 0x80000000)
 						temp_rs=reg_pre[rs] | 0xffffffff00000000;
 					else
@@ -176,16 +267,12 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 						temp_rt=reg_pre[rt] | 0xffffffff00000000;
 					else
 						temp_rt=reg_pre[rt] | 0x00000000ffffffff;
-					cout << setw(16) << setfill('0') << hex << temp_rt << "--rt" << endl;
-					cout << setw(16) << setfill('0') << hex << temp_rs << "--rs" << endl;
-					cout << setw(16) << setfill('0') << hex << (temp_rs*temp_rt) << "--outcome" << endl;
 					reg_cur[32] = (temp_rs*temp_rt)>>32;
 					reg_cur[33] = (temp_rs*temp_rt) & 0x00000000ffffffff;
+					detect_error(3,cyc); // detect HI/LO OVF
                     return ++no_inst;
 					break;
 				case 0x19 : //multu {Hi || Lo} = $s * $t (unsigned, no overflow exception)
-					cout << setw(8) << hex << reg_cur[rs] << " " << dec << rs << "--rs" << endl;
-					cout << setw(8) << hex << reg_cur[rt] << " " << dec << rt << "--rt" << endl;
 					if(reg_pre[rs] & 0x80000000)
 						temp_rs=reg_pre[rs] & 0x00000000ffffffff;
 					else
@@ -194,11 +281,9 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 						temp_rt=reg_pre[rt] & 0x00000000ffffffff;
 					else
 						temp_rt=reg_pre[rt] & 0x00000000ffffffff;
-					cout << setw(16) << setfill('0') << hex << temp_rt << "--rt" << endl;
-					cout << setw(16) << setfill('0') << hex << temp_rs << "--rs" << endl;
-					cout << setw(16) << setfill('0') << hex << (temp_rs*temp_rt) << "--outcome" << endl;
 					reg_cur[32] = (temp_rs*temp_rt)>>32;
 					reg_cur[33] = (temp_rs*temp_rt) & 0x00000000ffffffff;
+					detect_error(3,cyc); // detect HI/LO OVF
                     return ++no_inst;
 					break;
 				case 0x10 : //mfhi $d = Hi
@@ -246,6 +331,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
 			reg_cur[rt] = reg_cur[rs] + (int)immediate;
+			detect_error(2,cyc);
+			
 			return ++no_inst;
 			break;
 		case 0x09 : //addiu $t = $s + C(unsigned, no overflow exception)
@@ -267,6 +354,10 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			if(detect_D_mem(reg_pre[rs]+(int)immediate+3,cyc))
+				return -2;
+			if(detect_misaligned(reg_pre[rs]+(int)immediate+3,cyc,4)) //detect the misaligned
+				return -2;
 			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]  <<24)
 						+(data_data[reg_pre[rs]+(int)immediate+1]<<16)
 						+(data_data[reg_pre[rs]+(int)immediate+2]<< 8)
@@ -281,6 +372,10 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			if(detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc))
+				return -2;
+			if(detect_misaligned(reg_pre[rs]+(int)immediate+1,cyc,2)) //detect the misaligned
+				return -2;
 			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate  ]<<8)
 						+ data_data[reg_pre[rs]+(int)immediate+1];
 			if(reg_cur[rt] & 0x00008000)
@@ -295,6 +390,10 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			if(detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc))
+				return -2;
+			if(detect_misaligned(reg_pre[rs]+(int)immediate+1,cyc,2)) //detect the misaligned
+				return -2;
 			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]<<8)
 						+ data_data[reg_pre[rs]+(int)immediate+1]  ;
 			return ++no_inst;
@@ -307,6 +406,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			if(detect_D_mem(reg_pre[rs]+(int)immediate,cyc))
+				return -2;
 			reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
 			if(reg_cur[rt] & 0x0000080)
 				reg_cur[rt] =reg_cur[rt] | 0xffffff00;
@@ -320,6 +421,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			if(detect_D_mem(reg_pre[rs]+(int)immediate,cyc))
+				return -2;
 			reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
 			return ++no_inst;
 			break;
@@ -329,6 +432,10 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			if(detect_D_mem(reg_pre[rs]+(int)immediate+3,cyc))
+				return -2;
+			if(detect_misaligned(reg_pre[rs]+(int)immediate+3,cyc,4)) //detect the misaligned
+				return -2;
 			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>>24 & 0x000000ff;
 			data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]>>16 & 0x000000ff;
 			data_data[reg_pre[rs]+(int)immediate+2]=reg_pre[rt]>> 8 & 0x000000ff;
@@ -341,6 +448,10 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			if(detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc))
+				return -2;
+			if(detect_misaligned(reg_pre[rs]+(int)immediate+1,cyc,2)) //detect the misaligned
+				return -2;
 			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>> 8 & 0x000000ff;
 			data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]     & 0x000000ff;
 			return ++no_inst;
@@ -351,6 +462,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			if(detect_D_mem(reg_pre[rs]+(int)immediate,cyc))
+				return -2;
 			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]     & 0x000000ff;
 			return ++no_inst;
 			break;
