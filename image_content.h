@@ -19,3 +19,11 @@ extern unsigned int no_data_data;
 extern unsigned int* data_data;
 extern unsigned int* data_pc_addr;
 
+extern unsigned int address; //26 bits
+extern unsigned int immediate; //16 bits
+extern unsigned int opcode, funct; //6 bits
+extern unsigned int rt, rs, rd, shamt; //5 bits
+extern unsigned int inst_pre; //to detect the overwrite HI-LO
+extern int flag_hi;
+extern int flag_lo;
+

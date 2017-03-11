@@ -2,8 +2,11 @@
 #include <iomanip>
 #include <fstream>
 #include <string>
-
+//var repository
 #include "image_content.h"
+//error function
+#include "error_detect.h"
+//dealing with data
 #include "image_translation.h"
 
 using namespace std;
@@ -34,15 +37,17 @@ int main()
 	report_cyc.open("snapshot_mine.rpt",ios::out); //in order to record chase data in every cyc
 	report_error.open("error_dump_mine.rpt",ios::out); //in order to chase error in every cyc
 
+	//initialize var
 	flag_hi=0;
 	flag_lo=0;
+	error_halt=0;
 
 	while(1)
 	{
 		Snapshot(cyc);
 		no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur, cyc+1); //deal with the data, and return next inst
 		//cout << "no_inst_cur : " << no_inst_cur << endl;
-		if(no_inst_cur==-2) //detect "halt" instruction
+		if(no_inst_cur==-2||error_halt==1) //detect "halt" instruction
 			break;
 		reg_cur[34]=inst_pc_addr[no_inst_cur]; //renew the PC address
 		cyc++;
