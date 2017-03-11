@@ -12,7 +12,7 @@ using namespace std;
 //handle the inst
 int trans_inst(unsigned int inst, int no_inst, int cyc)
 {
-	unsigned int pc_addr; //a temp pc address to seek for the next inst :)
+	unsigned int pc_addr=0; //a temp pc address to seek for the next inst :)
 	long long int temp_rs, temp_rt;
     //cout << "instrution : " << hex << inst << endl;
 
@@ -90,7 +90,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 					break;
 				case 0x02 : //srl $d = $t >> C
 					shamt = (inst>>6)%(1<<5);
-					reg_cur[rd]= reg_pre[rt]>>shamt;
+					reg_cur[rd]= (unsigned int)reg_pre[rt]>>shamt;
 					detect_reg0(cyc); //detect write $0     //continue the sim
                     return ++no_inst;
 					break;
@@ -204,7 +204,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 						+(data_data[reg_pre[rs]+(int)immediate+3]    );
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_D_mem(reg_pre[rs]+(int)immediate+3,cyc); //detect the D mem  //halt the sim
-			detect_misaligned(reg_pre[rs]+(int)immediate+3,cyc,4); //detect misaligned  //halt the sim
+			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,4); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
 		case 0x21 : //lh $t = 2 bytes from Memory[$s + C(signed)], signed
@@ -219,7 +219,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				reg_cur[rt] = reg_cur[rt] | 0xffff8000;
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc); //detect the D mem  //halt the sim
-			detect_misaligned(reg_pre[rs]+(int)immediate+1,cyc,2); //detect misaligned  //halt the sim
+			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,2); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
 		case 0x25 : //lhu $t = 2 bytes from Memory[$s + C(signed)], unsigned
@@ -232,7 +232,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 						+ data_data[reg_pre[rs]+(int)immediate+1]  ;
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc); //detect the D mem  //halt the sim
-			detect_misaligned(reg_pre[rs]+(int)immediate+1,cyc,2); //detect misaligned  //halt the sim
+			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,2); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
 		case 0x20 : //lb $t = Memory[$s + C(signed)], signed
@@ -270,7 +270,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			data_data[reg_pre[rs]+(int)immediate+2]=reg_pre[rt]>> 8 & 0x000000ff;
 			data_data[reg_pre[rs]+(int)immediate+3]=reg_pre[rt]     & 0x000000ff;
 			detect_D_mem(reg_pre[rs]+(int)immediate+3,cyc); //detect the D mem  //halt the sim
-			detect_misaligned(reg_pre[rs]+(int)immediate+3,cyc,4); //detect misaligned  //halt the sim
+			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,4); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
 		case 0x29 : //sh 2 bytes from Memory[$s + C(signed)] = $t & 0x0000FFFF
@@ -282,7 +282,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>> 8 & 0x000000ff;
 			data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]     & 0x000000ff;
 			detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc); //detect the D mem  //halt the sim
-			detect_misaligned(reg_pre[rs]+(int)immediate+1,cyc,2); //detect misaligned  //halt the sim
+			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,2); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
 		case 0x28 : //sb Memory[$s + C(signed)] = $t & 0x000000FF
@@ -332,7 +332,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			reg_cur[rt]= (reg_pre[rs]&0x80000000)<((int)(immediate&0x8000)<<16);
+			reg_cur[rt]= (reg_pre[rs])<((int)immediate);
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			return ++no_inst;
 			break;
@@ -373,7 +373,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			if(reg_pre[rs]>0)
+			if(reg_cur[rs]<=0)
 				return ++no_inst;
 			else
 			{

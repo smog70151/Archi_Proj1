@@ -35,12 +35,19 @@ void detect_ovf(int cyc)
 	switch(opcode)
 	{
 	case 0x00 :
-		if(funct==0x20 || funct==0x22)
+		if(funct==0x20)
 		{
-			if(reg_cur[rs]>=0&&reg_cur[rt]>=0&&reg_cur[rd]<0)
+			if(reg_pre[rs]>=0&&reg_pre[rt]>=0&&reg_cur[rd]<0)
 				report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
-			else if(reg_cur[rs]<0&&reg_cur[rt]<0&&reg_cur[rd]>=0)
+			else if(reg_pre[rs]<0&&reg_pre[rt]<0&&reg_cur[rd]>=0)
 				report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
+		}
+		if(funct==0x22)
+		{
+            if(reg_pre[rs]>=0&&reg_pre[rt]<0&&reg_cur[rd]<0)
+                report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
+            else if(reg_pre[rs]<0&&reg_pre[rt]>=0&&reg_cur[rd]>=0)
+                report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
 		}
 	break;
 	case 0x08 :

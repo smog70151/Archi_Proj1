@@ -122,8 +122,6 @@ void read_inst()  //read iimage.bin and store the inst step by step
         inst_pc_addr[no_inst_data-count]=pc_addr_init+(no_inst_data-count)*4;
 
         count--;
-        if((inst>>26)==63) //terminate the program with the inst "halt"
-			break;
     }
     iimage.close();
 }
@@ -175,8 +173,8 @@ void read_data()  //read the dimage.bin and store it into the data array. Beside
 		data_data[4*(no_data_data-count)+1]=(data & 0x00ff0000)>>16;
 		data_data[4*(no_data_data-count)+2]=(data & 0x0000ff00)>>8;
 		data_data[4*(no_data_data-count)+3]= data & 0x000000ff;
-		
-		
+
+
         data_pc_addr[no_data_data-count]=0;
 
         count--;
@@ -195,7 +193,7 @@ void Init_reg()
 
 void Snapshot(int cyc)
 {
-	
+
     report_cyc << "cycle " << dec << cyc << endl;
     for(int i=0; i<35; i++) // print the ans in the ordered list
     {
