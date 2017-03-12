@@ -96,7 +96,7 @@ void detect_ovr(int cyc)
 
 void detect_D_mem(int mem, int cyc)
 {
-	if(mem>1023)
+	if((unsigned)mem>1023)
 	{
 		report_error <<  "In cycle " << dec << cyc << ": Address Overflow" << endl;
 		error_halt=1;

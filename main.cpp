@@ -34,8 +34,8 @@ int main()
     read_inst(); //read instruction file and store the message
     read_data(); //read data file and analyze the inst
 
-	report_cyc.open("snapshot_mine.rpt",ios::out); //in order to record chase data in every cyc
-	report_error.open("error_dump_mine.rpt",ios::out); //in order to chase error in every cyc
+	report_cyc.open("snapshot.rpt",ios::out); //in order to record chase data in every cyc
+	report_error.open("error_dump.rpt",ios::out); //in order to chase error in every cyc
 
 	//initialize var
 	flag_hi=0;
@@ -44,6 +44,8 @@ int main()
 
 	while(1)
 	{
+    if(cyc==100)
+      break;
 		Snapshot(cyc);
 		no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur, cyc+1); //deal with the data, and return next inst
 		//cout << "no_inst_cur : " << no_inst_cur << endl;
@@ -92,7 +94,7 @@ void read_inst()  //read iimage.bin and store the inst step by step
     }
     //store the initial PC address
     pc_addr_init=inst;
-	reg_cur[34]=pc_addr_init;
+	  reg_cur[34]=pc_addr_init;
 
     //number of instructions (iimage_1)
     for(int i=0; i<4; i++)
@@ -186,7 +188,7 @@ void Init_reg()
 {
     for(int i = 0; i<35; i++)
     {
-        reg_pre[i]=(1<<31); //2^31
+        reg_pre[i]=0xffff8888; //2^31
         reg_cur[i]=0;
     }
 }

@@ -346,7 +346,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				return ++no_inst;
 			else
 			{
-				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate<<2);
+				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate*4);
 				for(unsigned int i = 0; i<no_inst_data; i++)
 					if(pc_addr==inst_pc_addr[i])
 						return no_inst=i;
@@ -362,7 +362,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				return ++no_inst;
 			else
 			{
-				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate<<2);
+				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate*4);
 				for(unsigned int i = 0; i<no_inst_data; i++)
 					if(pc_addr==inst_pc_addr[i])
 						return no_inst=i;
@@ -377,7 +377,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				return ++no_inst;
 			else
 			{
-				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate<<2);
+				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate*4);
 				for(unsigned int i = 0; i<no_inst_data; i++)
 					if(pc_addr==inst_pc_addr[i])
 						return no_inst=i;
