@@ -12,6 +12,7 @@ using namespace std;
 //handle the inst
 int trans_inst(unsigned int inst, int no_inst, int cyc)
 {
+	unsigned int mem_addr=0;
 	unsigned int pc_addr=0; //a temp pc address to seek for the next inst :)
 	long long int temp_rs, temp_rt;
     //cout << "instrution : " << hex << inst << endl;
@@ -19,14 +20,14 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
     opcode = inst>>26; // trans opcode in the beginning to determine the next step
 	if(opcode!=0x00)
 		inst_pre=inst;
-    cout << "opcode : " << hex << opcode << endl;
+    cout << "opcode : " << hex << opcode << " cyc " << dec << (cyc-1) << endl;
     switch(opcode)
     {
         //R-type instructions op(6)_rs(5)_rt(5)_rd(5)_shamt(5)_funct(6)
         //opcode = 0x00
         case 0x00 :
             funct = inst%(1<<6);
-			cout << "funct : " << hex << funct << " cyc " << (cyc-1) << endl;
+			cout << "funct : " << hex << funct << dec << " cyc " << (cyc-1) << endl;
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			rd = (inst>>11)%(1<<5);
@@ -47,6 +48,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 					break;
                 case 0x22 : //sub $d = $s - $t
 					reg_cur[rd]=reg_pre[rs]-reg_pre[rt];
+					cout << "cyc rs:"<< setw(8) << hex << reg_pre[rs] << endl;
+					cout << "cyc rt:"<< setw(8) << hex << reg_pre[rt] << endl;
 					detect_reg0(cyc); //detect write $0     //continue the sim
 					detect_ovf(cyc);  //detect outcome ovf  //continue the sim
                     return ++no_inst;
@@ -148,7 +151,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 					return ++no_inst;
 					break;
 				default :
-					return -1; // error
+					cout << "illegal instruction found at 0x" << hex << setw(8) << setfill('0') << inst ;
+					return -1; // error : illegal inst
 					break;
             }
             break;
@@ -198,10 +202,12 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]  <<24)
-						+(data_data[reg_pre[rs]+(int)immediate+1]<<16)
-						+(data_data[reg_pre[rs]+(int)immediate+2]<< 8)
-						+(data_data[reg_pre[rs]+(int)immediate+3]    );
+			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate+3);
+			if(mem_addr<=1023)
+				reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]  <<24)
+							+(data_data[reg_pre[rs]+(int)immediate+1]<<16)
+							+(data_data[reg_pre[rs]+(int)immediate+2]<< 8)
+							+(data_data[reg_pre[rs]+(int)immediate+3]    );
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_D_mem(reg_pre[rs]+(int)immediate+3,cyc); //detect the D mem  //halt the sim
 			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,4); //detect misaligned  //halt the sim
@@ -213,10 +219,14 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate  ]<<8)
-						+ data_data[reg_pre[rs]+(int)immediate+1];
-			if(reg_cur[rt] & 0x00008000)
-				reg_cur[rt] = reg_cur[rt] | 0xffff8000;
+			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate+1);
+			if(mem_addr<=1023)
+			{
+				reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate  ]<<8)
+							+ data_data[reg_pre[rs]+(int)immediate+1];
+				if(reg_cur[rt] & 0x00008000)
+					reg_cur[rt] = reg_cur[rt] | 0xffff8000;
+			}
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc); //detect the D mem  //halt the sim
 			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,2); //detect misaligned  //halt the sim
@@ -228,8 +238,10 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]<<8)
-						+ data_data[reg_pre[rs]+(int)immediate+1]  ;
+			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate+1);
+			if(mem_addr<=1023)
+				reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]<<8)
+							+ data_data[reg_pre[rs]+(int)immediate+1]  ;
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc); //detect the D mem  //halt the sim
 			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,2); //detect misaligned  //halt the sim
@@ -241,9 +253,13 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
-			if(reg_cur[rt] & 0x0000080)
-				reg_cur[rt] =reg_cur[rt] | 0xffffff00;
+			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate);
+			if(mem_addr<=1023)
+			{
+				reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
+				if(reg_cur[rt] & 0x0000080)
+					reg_cur[rt] =reg_cur[rt] | 0xffffff00;
+			}
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_D_mem(reg_pre[rs]+(int)immediate,cyc); //detect the D mem  //halt the sim
 			return ++no_inst;
@@ -254,7 +270,9 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
+			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate);
+			if(mem_addr<=1023)
+				reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_D_mem(reg_pre[rs]+(int)immediate,cyc); //detect the D mem  //halt the sim
 			return ++no_inst;
@@ -346,10 +364,21 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				return ++no_inst;
 			else
 			{
-				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate<<2);
+				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate*4);
 				for(unsigned int i = 0; i<no_inst_data; i++)
 					if(pc_addr==inst_pc_addr[i])
 						return no_inst=i;
+				if(pc_addr<init_pc) //check bounding edge (min)
+					min_pc=min_pc<pc_addr?min_pc:pc_addr;
+				if(pc_addr>init_max_pc) //check bounding edge (max)
+					max_pc=max_pc>pc_addr?max_pc:pc_addr;
+				if(max_pc-min_pc>1023) //detect error
+					detect_D_mem(2048,cyc);
+				else
+				{
+					reg_cur[34]=pc_addr;
+					return 1000;
+				}
 			}
 			break;
 		case 0x05 : //bne if ($s != $t) go to PC+4+4*C(signed)
@@ -362,10 +391,21 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				return ++no_inst;
 			else
 			{
-				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate<<2);
+				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate*4);
 				for(unsigned int i = 0; i<no_inst_data; i++)
 					if(pc_addr==inst_pc_addr[i])
 						return no_inst=i;
+				if(pc_addr<init_pc) //check bounding edge (min)
+					min_pc=min_pc<pc_addr?min_pc:pc_addr;
+				if(pc_addr>init_max_pc) //check bounding edge (max)
+					max_pc=max_pc>pc_addr?max_pc:pc_addr;
+				if(max_pc-min_pc>1023) //detect error
+					detect_D_mem(2048,cyc);
+				else
+				{
+					reg_cur[34]=pc_addr;
+					return 1000;
+				}
 			}
 			break;
 		case 0x07 : //bgtz if ($s > 0) go to PC+4+4*C(signed)
@@ -377,17 +417,29 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				return ++no_inst;
 			else
 			{
-				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate<<2);
+				pc_addr = inst_pc_addr[no_inst]+4+((int)immediate*4);
 				for(unsigned int i = 0; i<no_inst_data; i++)
 					if(pc_addr==inst_pc_addr[i])
 						return no_inst=i;
+				if(pc_addr<init_pc) //check bounding edge (min)
+					min_pc=min_pc<pc_addr?min_pc:pc_addr;
+				if(pc_addr>init_max_pc) //check bounding edge (max)
+					max_pc=max_pc>pc_addr?max_pc:pc_addr;
+				if(max_pc-min_pc>1023) //detect error
+					detect_D_mem(2048,cyc);
+				else
+				{
+					reg_cur[34]=pc_addr;
+					return 1000;
+				}
 			}
 			break;
 		case 0x3f : //halt halt the simulation
 			return -2;
 			break;
 		default :
-			return -1; // OH! error occur :(
+			cout << "illegal instruction found at 0x" << hex << setw(8) << setfill('0') << inst ;
+			return -1; // error : illegal inst
 			break;
     }
 }

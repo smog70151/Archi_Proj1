@@ -34,8 +34,8 @@ int main()
     read_inst(); //read instruction file and store the message
     read_data(); //read data file and analyze the inst
 
-	report_cyc.open("snapshot_mine.rpt",ios::out); //in order to record chase data in every cyc
-	report_error.open("error_dump_mine.rpt",ios::out); //in order to chase error in every cyc
+	report_cyc.open("snapshot.rpt",ios::out); //in order to record chase data in every cyc
+	report_error.open("error_dump.rpt",ios::out); //in order to chase error in every cyc
 
 	//initialize var
 	flag_hi=0;
@@ -44,12 +44,22 @@ int main()
 
 	while(1)
 	{
+		//if(cyc==51)
+		//	cout << "cyc 51 inst:"<< setw(8) << hex << inst_data[no_inst_cur] << endl;
 		Snapshot(cyc);
-		no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur, cyc+1); //deal with the data, and return next inst
-		//cout << "no_inst_cur : " << no_inst_cur << endl;
-		if(no_inst_cur==-2||error_halt==1) //detect "halt" instruction
+		if(reg_cur[34]==init_pc) // init the no_inst_cur
+			no_inst_cur=0;
+		if(reg_cur[34]<init_pc) // jump over init_pc
+			reg_cur[34]+=4;
+		else if(reg_cur[34]>init_max_pc) // jump over init_max
+			reg_cur[34]+=4;
+		else // deal with the data, and return next inst
+			no_inst_cur=trans_inst(inst_data[no_inst_cur], no_inst_cur, cyc+1); 
+		// halt 1."halt" 2."error" 3."illegal inst"
+		if(no_inst_cur==-2||error_halt==1||no_inst_cur==-1)
 			break;
-		reg_cur[34]=inst_pc_addr[no_inst_cur]; //renew the PC address
+		if(no_inst_cur!=1000) // if pc beyond the edge, it won't replace pc addr.
+			reg_cur[34]=inst_pc_addr[no_inst_cur]; // renew the PC address
 		cyc++;
 	}
 
@@ -93,6 +103,7 @@ void read_inst()  //read iimage.bin and store the inst step by step
     //store the initial PC address
     pc_addr_init=inst;
 	reg_cur[34]=pc_addr_init;
+	init_pc=min_pc=pc_addr_init;
 
     //number of instructions (iimage_1)
     for(int i=0; i<4; i++)
@@ -105,6 +116,7 @@ void read_inst()  //read iimage.bin and store the inst step by step
     no_inst_data=inst;
     inst_data = new unsigned int[no_inst_data];
     inst_pc_addr = new unsigned int[no_inst_data];
+	init_max_pc = max_pc = min_pc+(no_inst_data-1)*4;
 
     //(iimage_2~end)
     count = inst;
@@ -186,7 +198,7 @@ void Init_reg()
 {
     for(int i = 0; i<35; i++)
     {
-        reg_pre[i]=(1<<31); //2^31
+        reg_pre[i]=0xffff8888; //2^31
         reg_cur[i]=0;
     }
 }

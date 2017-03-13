@@ -37,23 +37,23 @@ void detect_ovf(int cyc)
 	case 0x00 :
 		if(funct==0x20)
 		{
-			if(reg_pre[rs]>=0&&reg_pre[rt]>=0&&reg_cur[rd]<0)
+			if(reg_pre[rs]>=0&&reg_pre[rt]>=0&&(reg_pre[rt]+reg_pre[rs])<0)
 				report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
-			else if(reg_pre[rs]<0&&reg_pre[rt]<0&&reg_cur[rd]>=0)
+			else if(reg_pre[rs]<0&&reg_pre[rt]<0&&(reg_pre[rt]+reg_pre[rs])>=0)
 				report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
 		}
 		if(funct==0x22)
 		{
-            if(reg_pre[rs]>=0&&reg_pre[rt]<0&&reg_cur[rd]<0)
+            if(reg_pre[rs]>=0&&reg_pre[rt]<0&&(reg_pre[rs]-reg_pre[rt])<0)
                 report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
-            else if(reg_pre[rs]<0&&reg_pre[rt]>=0&&reg_cur[rd]>=0)
+            else if(reg_pre[rs]<0&&reg_pre[rt]>=0&&(reg_pre[rs]-reg_pre[rt])>=0)
                 report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
 		}
 	break;
 	case 0x08 :
-		if(reg_cur[rs]>=0&&(int)immediate>=0&&reg_cur[rt]<0)
+		if(reg_cur[rs]>=0&&(int)immediate>=0&&(reg_cur[rs] + (int)immediate)<0)
 			report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
-		else if(reg_cur[rs]>=0&&(int)immediate>=0&&reg_cur[rt]<0)
+		else if(reg_cur[rs]>=0&&(int)immediate>=0&&(reg_cur[rs] + (int)immediate)<0)
 			report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
 	break;
 	default :
@@ -96,7 +96,7 @@ void detect_ovr(int cyc)
 
 void detect_D_mem(int mem, int cyc)
 {
-	if(mem>1023)
+	if((unsigned)mem>1023)
 	{
 		report_error <<  "In cycle " << dec << cyc << ": Address Overflow" << endl;
 		error_halt=1;

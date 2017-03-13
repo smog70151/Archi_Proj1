@@ -9,6 +9,12 @@ using namespace std;
 extern int reg_pre[35];
 extern int reg_cur[35];
 
+//bounding pc
+extern unsigned int min_pc;
+extern unsigned int max_pc;
+extern unsigned int init_pc;
+extern unsigned int init_max_pc;
+
 //inst_memory(iimage)
 extern unsigned int no_inst_data;
 extern unsigned int* inst_data;

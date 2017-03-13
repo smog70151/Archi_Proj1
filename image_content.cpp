@@ -7,6 +7,12 @@ using namespace std;
 int reg_pre[35];
 int reg_cur[35];
 
+//bounding pc
+unsigned int min_pc;
+unsigned int max_pc;
+unsigned int init_pc;
+unsigned int init_max_pc;
+
 //inst_memory(iimage)
 unsigned int no_inst_data;
 unsigned int* inst_data;
