@@ -35,27 +35,52 @@ void detect_ovf(int cyc)
 	switch(opcode)
 	{
 	case 0x00 :
-		if(funct==0x20)
+		if(funct==0x20) //add
 		{
 			if(reg_pre[rs]>=0&&reg_pre[rt]>=0&&(reg_pre[rt]+reg_pre[rs])<0)
 				report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
 			else if(reg_pre[rs]<0&&reg_pre[rt]<0&&(reg_pre[rt]+reg_pre[rs])>=0)
 				report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
 		}
-		if(funct==0x22)
+		if(funct==0x22) //sub
 		{
-            if(reg_pre[rs]>=0&&reg_pre[rt]<0&&(reg_pre[rs]-reg_pre[rt])<0)
+            if(reg_pre[rs]>=0&&(~reg_pre[rt]+1)>=0&&(reg_pre[rs]-reg_pre[rt])<0)
                 report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
-            else if(reg_pre[rs]<0&&reg_pre[rt]>=0&&(reg_pre[rs]-reg_pre[rt])>=0)
+            else if(reg_pre[rs]<0&&(~reg_pre[rt]+1)<0&&(reg_pre[rs]-reg_pre[rt])>=0)
                 report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
 		}
 	break;
-	case 0x08 :
-		if(reg_cur[rs]>=0&&(int)immediate>=0&&(reg_cur[rs] + (int)immediate)<0)
+	case 0x08 : //addi
+	case 0x23 : //lw
+	case 0x21 : //lh
+	case 0x25 : //lhu
+	case 0x20 : //lb
+	case 0x24 : //lbu
+	case 0x2b : //sw
+	case 0x29 : //sh
+	case 0x28 : //sb
+		if(reg_pre[rs]>=0&&(int)immediate>=0&&(reg_pre[rs] + (int)immediate)<0)
 			report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
-		else if(reg_cur[rs]>=0&&(int)immediate>=0&&(reg_cur[rs] + (int)immediate)<0)
+		else if(reg_pre[rs]<0&&(int)immediate<0&&(reg_pre[rs] + (int)immediate)>=0)
 			report_error <<  "In cycle " << dec << cyc << ": Number Overflow" << endl;
 	break;
+	
+	/*
+	case 0x25 : //lhu
+	case 0x20 : //lb
+	case 0x24 : //lbu
+	case 0x2b : //sw
+	case 0x29 : //sh
+	case 0x28 : //sb
+	*/
+	/*
+	case 0x04 : //beq
+	break;
+	case 0x05 : //bne
+	break;
+	case 0x07 : //bgtz
+	break;
+	*/
 	default :
 	break;
 	}

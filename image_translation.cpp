@@ -12,22 +12,22 @@ using namespace std;
 //handle the inst
 int trans_inst(unsigned int inst, int no_inst, int cyc)
 {
-	unsigned int mem_addr=0;
+	int mem_addr=0;
 	unsigned int pc_addr=0; //a temp pc address to seek for the next inst :)
 	long long int temp_rs, temp_rt;
-    //cout << "instrution : " << hex << inst << endl;
+    //cout << "inst : " << hex << inst << " cyc " << dec << (cyc-1) << endl;
 
     opcode = inst>>26; // trans opcode in the beginning to determine the next step
 	if(opcode!=0x00)
 		inst_pre=inst;
-    cout << "opcode : " << hex << opcode << " cyc " << dec << (cyc-1) << endl;
+    //cout << "opcode : " << hex << opcode << " cyc " << dec << (cyc-1) << endl;
     switch(opcode)
     {
         //R-type instructions op(6)_rs(5)_rt(5)_rd(5)_shamt(5)_funct(6)
         //opcode = 0x00
         case 0x00 :
             funct = inst%(1<<6);
-			cout << "funct : " << hex << funct << dec << " cyc " << (cyc-1) << endl;
+			//cout << "funct : " << hex << funct << dec << " cyc " << (cyc-1) << endl;
 			rs = (inst>>21)%(1<<5);
 			rt = (inst>>16)%(1<<5);
 			rd = (inst>>11)%(1<<5);
@@ -37,6 +37,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
             {
                 case 0x20 : //add $d = $s + $t
 					reg_cur[rd]=reg_pre[rs]+reg_pre[rt];
+					//cout << "cyc rs :" << hex << reg_pre[rs] << endl;
+					//cout << "cyc rt :" << hex << reg_pre[rt] << endl;
 					detect_reg0(cyc); //detect write $0     //continue the sim
 					detect_ovf(cyc);  //detect outcome ovf  //continue the sim
                     return ++no_inst;
@@ -48,8 +50,8 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 					break;
                 case 0x22 : //sub $d = $s - $t
 					reg_cur[rd]=reg_pre[rs]-reg_pre[rt];
-					cout << "cyc rs:"<< setw(8) << hex << reg_pre[rs] << endl;
-					cout << "cyc rt:"<< setw(8) << hex << reg_pre[rt] << endl;
+					//cout << "cyc rs:"<< setw(8) << hex << reg_pre[rs] << endl;
+					//cout << "cyc rt:"<< setw(8) << hex << reg_pre[rt] << endl;
 					detect_reg0(cyc); //detect write $0     //continue the sim
 					detect_ovf(cyc);  //detect outcome ovf  //continue the sim
                     return ++no_inst;
@@ -87,7 +89,7 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 				case 0x00 : //sll $d = $t << C
 					shamt = (inst>>6)%(1<<5);
 					reg_cur[rd]= reg_pre[rt]<<shamt;
-					if(inst!=0x00000000)  //NOP inst won't detect error 
+					if(shamt!=0 || rt != 0 || rd != 0)  //NOP inst won't detect error 
 						detect_reg0(cyc); //detect write $0     //continue the sim
                     return ++no_inst;
 					break;
@@ -111,6 +113,17 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 					for(unsigned int i = 0; i<no_inst_data; i++)
 						if(pc_addr==inst_pc_addr[i])
 							return no_inst=i;
+					if(pc_addr<init_pc) //check bounding edge (min)
+					min_pc=min_pc<pc_addr?min_pc:pc_addr;
+					if(pc_addr>init_max_pc) //check bounding edge (max)
+						max_pc=max_pc>pc_addr?max_pc:pc_addr;
+					if(max_pc-min_pc>1023) //detect error
+						detect_D_mem(2048,cyc);
+					else
+					{
+						reg_cur[34]=pc_addr;
+						return 1000;
+					}
 					break;
 				case 0x18 : //mult {Hi || Lo} = $s * $t
 					if(reg_pre[rs] & 0x80000000)
@@ -164,6 +177,17 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
             for(unsigned int i = 0; i<no_inst_data; i++)
 				if(pc_addr==inst_pc_addr[i])
 					return no_inst=i;
+			if(pc_addr<init_pc) //check bounding edge (min)
+				min_pc=min_pc<pc_addr?min_pc:pc_addr;
+			if(pc_addr>init_max_pc) //check bounding edge (max)
+				max_pc=max_pc>pc_addr?max_pc:pc_addr;
+			if(max_pc-min_pc>1023) //detect error
+				detect_D_mem(2048,cyc);
+			else
+			{
+				reg_cur[34]=pc_addr;
+				return 1000;
+			}
 			break;
         case 0x03 : //jal $31 = PC + 4;PC = (PC+4)[31:28] | 4*C(unsigned)
 			address=inst%(1<<26);
@@ -172,6 +196,17 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
             for(unsigned int i = 0; i<no_inst_data; i++)
 				if(pc_addr==inst_pc_addr[i])
 					return no_inst=i;
+			if(pc_addr<init_pc) //check bounding edge (min)
+				min_pc=min_pc<pc_addr?min_pc:pc_addr;
+			if(pc_addr>init_max_pc) //check bounding edge (max)
+				max_pc=max_pc>pc_addr?max_pc:pc_addr;
+			if(max_pc-min_pc>1023) //detect error
+				detect_D_mem(2048,cyc);
+			else
+			{
+				reg_cur[34]=pc_addr;
+				return 1000;
+			}
             break;
 		//I-type instructions
 		//opcode(6)_rs(5)_rt(5)_immediate(16)
@@ -181,7 +216,10 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
+			//cout << "cyc rs:"<< setw(8) << hex << reg_cur[rs] << endl;
+			//cout << "cyc rt:"<< setw(8) << hex << immediate << endl;
 			reg_cur[rt] = reg_cur[rs] + (int)immediate;
+			//cout << "cyc rs:"<< setw(8) << hex << reg_cur[rt] << endl;
 			detect_reg0(cyc); //detect write $0     //continue the sim
 			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
 			return ++no_inst;
@@ -202,14 +240,17 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate+3);
-			if(mem_addr<=1023)
+			mem_addr = (reg_pre[rs]+(int)immediate+3);
+			if(3<=mem_addr&&mem_addr<=1023)
 				reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]  <<24)
 							+(data_data[reg_pre[rs]+(int)immediate+1]<<16)
 							+(data_data[reg_pre[rs]+(int)immediate+2]<< 8)
 							+(data_data[reg_pre[rs]+(int)immediate+3]    );
+			else 
+				mem_addr=1024; //ovf occur
 			detect_reg0(cyc); //detect write $0     //continue the sim
-			detect_D_mem(reg_pre[rs]+(int)immediate+3,cyc); //detect the D mem  //halt the sim
+			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
+			detect_D_mem(mem_addr,cyc); //detect the D mem  //halt the sim
 			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,4); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
@@ -219,16 +260,20 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate+1);
-			if(mem_addr<=1023)
+			mem_addr = (reg_pre[rs]+(int)immediate+1);
+			//cout << mem_addr << endl;
+			if(1<=mem_addr&&mem_addr<=1023)
 			{
 				reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate  ]<<8)
 							+ data_data[reg_pre[rs]+(int)immediate+1];
 				if(reg_cur[rt] & 0x00008000)
 					reg_cur[rt] = reg_cur[rt] | 0xffff8000;
 			}
+			else 
+				mem_addr=1024; //ovf occur
 			detect_reg0(cyc); //detect write $0     //continue the sim
-			detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc); //detect the D mem  //halt the sim
+			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
+			detect_D_mem(mem_addr,cyc); //detect the D mem  //halt the sim
 			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,2); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
@@ -238,12 +283,15 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate+1);
-			if(mem_addr<=1023)
+			mem_addr = (reg_pre[rs]+(int)immediate+1);
+			if(1<=mem_addr&&mem_addr<=1023)
 				reg_cur[rt] =(data_data[reg_pre[rs]+(int)immediate]<<8)
 							+ data_data[reg_pre[rs]+(int)immediate+1]  ;
+			else 
+				mem_addr=1024; //ovf occur
 			detect_reg0(cyc); //detect write $0     //continue the sim
-			detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc); //detect the D mem  //halt the sim
+			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
+			detect_D_mem(mem_addr,cyc); //detect the D mem  //halt the sim
 			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,2); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
@@ -253,15 +301,18 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate);
-			if(mem_addr<=1023)
+			mem_addr = (reg_pre[rs]+(int)immediate);
+			if(0<=mem_addr&&mem_addr<=1023)
 			{
 				reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
 				if(reg_cur[rt] & 0x0000080)
 					reg_cur[rt] =reg_cur[rt] | 0xffffff00;
 			}
+			else 
+				mem_addr=1024; //ovf occur
 			detect_reg0(cyc); //detect write $0     //continue the sim
-			detect_D_mem(reg_pre[rs]+(int)immediate,cyc); //detect the D mem  //halt the sim
+			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
+			detect_D_mem(mem_addr,cyc); //detect the D mem  //halt the sim
 			return ++no_inst;
 			break;
 		case 0x24 : //lbu $t = Memory[$s + C(signed)], unsigned
@@ -270,11 +321,14 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			mem_addr = (unsigned int)(reg_pre[rs]+(int)immediate);
-			if(mem_addr<=1023)
+			mem_addr = (reg_pre[rs]+(int)immediate);
+			if(0<=mem_addr&&mem_addr<=1023)
 				reg_cur[rt] = data_data[reg_pre[rs]+(int)immediate];
+			else 
+				mem_addr=1024; //ovf occur
 			detect_reg0(cyc); //detect write $0     //continue the sim
-			detect_D_mem(reg_pre[rs]+(int)immediate,cyc); //detect the D mem  //halt the sim
+			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
+			detect_D_mem(mem_addr,cyc); //detect the D mem  //halt the sim
 			return ++no_inst;
 			break;
 		case 0x2b : //sw 4 bytes from Memory[$s + C(signed)] = $t
@@ -283,11 +337,18 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>>24 & 0x000000ff;
-			data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]>>16 & 0x000000ff;
-			data_data[reg_pre[rs]+(int)immediate+2]=reg_pre[rt]>> 8 & 0x000000ff;
-			data_data[reg_pre[rs]+(int)immediate+3]=reg_pre[rt]     & 0x000000ff;
-			detect_D_mem(reg_pre[rs]+(int)immediate+3,cyc); //detect the D mem  //halt the sim
+			mem_addr = reg_pre[rs]+(int)immediate+3;
+			if(3<=mem_addr&&mem_addr<=1023)
+			{
+				data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>>24 & 0x000000ff;
+				data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]>>16 & 0x000000ff;
+				data_data[reg_pre[rs]+(int)immediate+2]=reg_pre[rt]>> 8 & 0x000000ff;
+				data_data[reg_pre[rs]+(int)immediate+3]=reg_pre[rt]     & 0x000000ff;
+			}
+			else
+				mem_addr=1024;
+			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
+			detect_D_mem(mem_addr,cyc); //detect the D mem  //halt the sim
 			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,4); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
@@ -297,9 +358,16 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>> 8 & 0x000000ff;
-			data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]     & 0x000000ff;
-			detect_D_mem(reg_pre[rs]+(int)immediate+1,cyc); //detect the D mem  //halt the sim
+			mem_addr = reg_pre[rs]+(int)immediate+1;
+			if(1<=mem_addr&&mem_addr<=1023)
+			{
+				data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]>> 8 & 0x000000ff;
+				data_data[reg_pre[rs]+(int)immediate+1]=reg_pre[rt]     & 0x000000ff;
+			}
+			else
+				mem_addr=1024;
+			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
+			detect_D_mem(mem_addr,cyc); //detect the D mem  //halt the sim
 			detect_misaligned(reg_pre[rs]+(int)immediate,cyc,2); //detect misaligned  //halt the sim
 			return ++no_inst;
 			break;
@@ -309,8 +377,13 @@ int trans_inst(unsigned int inst, int no_inst, int cyc)
 			immediate = inst%(1<<16);
 			if(immediate & 0x00008000)
 				immediate = immediate | 0xffff0000;
-			data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]     & 0x000000ff;
-			detect_D_mem(reg_pre[rs]+(int)immediate,cyc); //detect the D mem  //halt the sim
+			mem_addr = reg_pre[rs]+(int)immediate;
+			if(0<=mem_addr&&mem_addr<=1023)
+				data_data[reg_pre[rs]+(int)immediate  ]=reg_pre[rt]     & 0x000000ff;
+			else
+				mem_addr = 1024 ;
+			detect_ovf(cyc);  //detect outcome ovf  //continue the sim
+			detect_D_mem(mem_addr,cyc); //detect the D mem  //halt the sim
 			return ++no_inst;
 			break;
 		case 0x0f : //lui $t = C << 16

@@ -44,7 +44,8 @@ int main()
 
 	while(1)
 	{
-		//if(cyc==51)
+		//if(cyc==68)
+		//	break;
 		//	cout << "cyc 51 inst:"<< setw(8) << hex << inst_data[no_inst_cur] << endl;
 		Snapshot(cyc);
 		if(reg_cur[34]==init_pc) // init the no_inst_cur
